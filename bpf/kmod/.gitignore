@@ -1,0 +1,11 @@
+# kernel module temp file
+*.o
+*~
+core
+.depend
+.*.cmd
+*.mod.c
+.tmp_versions
+Module.symvers
+modules.order
+*.ko
