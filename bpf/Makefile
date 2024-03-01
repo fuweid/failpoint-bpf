@@ -19,7 +19,7 @@ else
 	Q = @
 endif
 
-APPS := sidecar
+APPS := failpoint
 
 BINARIES=$(patsubst %,$(OUTPUT)/%.bpf.o,$(APPS))
 
