@@ -32,3 +32,20 @@ static __always_inline int handle_sys_exit_event(void *ctx, const char *name) {
 	bpf_printk("fexit %s\n", name);
 	return 0;
 }
+
+SEC("raw_tracepoint/sched_process_exit")
+int handle_sched_process_exit(void* ctx) {
+	u64 id = bpf_get_current_pid_tgid();
+	pid_t pid = id >> 32;
+	u32 tid = (u32)id;
+
+	if (filter_pid && pid != filter_pid)
+		return 0;
+
+	if (pid != tid)
+		return 0;
+
+	// NOTE: disable failpoint if process exit
+	filter_pid = 0;
+	return 0;
+}
