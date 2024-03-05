@@ -8,9 +8,9 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-const volatile pid_t filter_pid = 0;
+volatile pid_t filter_pid = 0;
 
-static __always_inline int handle_sys_entry_event(void *ctx, const char *name)
+static __always_inline int handle_sys_entry_event(void *ctx, const char *name, u32 sys_id)
 {
 	u64 id = bpf_get_current_pid_tgid();
 	pid_t pid = id >> 32;
@@ -22,7 +22,7 @@ static __always_inline int handle_sys_entry_event(void *ctx, const char *name)
 	return 0;
 }
 
-static __always_inline int handle_sys_exit_event(void *ctx, const char *name) {
+static __always_inline int handle_sys_exit_event(void *ctx, const char *name, u32 sys_id) {
 	u64 id = bpf_get_current_pid_tgid();
 	pid_t pid = id >> 32;
 
