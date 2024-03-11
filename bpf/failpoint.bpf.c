@@ -4,8 +4,6 @@
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
 #include <errno.h>
-#include "failpoint_define_helper.h"
-#include "failpoint_define.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -44,27 +42,31 @@ struct failpoint_spec {
 
 // sys_failpoints is the collection of failpoint specifications.
 //
-// The key is syscall id in kernel.
+// The key is the address of syscall handler.
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, 512);
-	__type(key, __u32);
+	__type(key, __u64);
 	__type(value, struct failpoint_spec);
 } sys_failpoints SEC(".maps");
 
 // sys_entry_counts is stats about counts for entering syscall.
+//
+// The key is the address of syscall handler.
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, 512);
-	__type(key, __u32);
+	__type(key, __u64);
 	__type(value, __u64);
 } sys_entry_counts SEC(".maps");
 
 // sys_exit_counts is stats about counts for exiting syscall.
+//
+// The key is the address of syscall handler.
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
 	__uint(max_entries, 512);
-	__type(key, __u32);
+	__type(key, __u64);
 	__type(value, __u64);
 } sys_exit_counts SEC(".maps");
 
@@ -88,55 +90,60 @@ int handle_sched_process_exit(void* ctx) {
 static bool should_inject(struct when_expr *when, u32 count);
 static void *bpf_map_lookup_or_init(void *map, const void *key, const void *init_val);
 
-static int handle_sys_entry_event(void *ctx, u32 sys_id)
+SEC("fentry.s+/unknown")
+static int handle_sys_entry_event(void *ctx)
 {
 	struct failpoint_spec *fp;
 	u64 id = bpf_get_current_pid_tgid();
 	pid_t pid = id >> 32;
 	u64 *cnt;
 	u64 current_cnt = 0;
+	u64 target_addr = bpf_get_func_ip(ctx);
 
 	if (filter_pid && pid != filter_pid)
 		return 0;
 
-	cnt = bpf_map_lookup_or_init(&sys_entry_counts, &sys_id, &zero_value);
+	cnt = bpf_map_lookup_or_init(&sys_entry_counts, &target_addr, &zero_value);
 	if (!cnt) {
 		return 0;
 	}
 	current_cnt = __sync_fetch_and_add(cnt, 1);
 
-	fp = (struct failpoint_spec *)bpf_map_lookup_elem(&sys_failpoints, &sys_id);
+	fp = (struct failpoint_spec *)bpf_map_lookup_elem(&sys_failpoints, &target_addr);
 	if (!fp)
 		return 0;
 
 	if (should_inject(&fp->when, current_cnt) && fp->delay_enter_msecs != 0) {
-		bpf_printk("fentry %d %d\n", sys_id, fp->delay_enter_msecs);
+		bpf_printk("fentry %x %d\n", target_addr, fp->delay_enter_msecs);
 	}
 	return 0;
 }
 
-static int handle_sys_exit_event(void *ctx, u32 sys_id) {
+SEC("fexit.s+/unknown")
+static int handle_sys_exit_event(void *ctx)
+{
 	struct failpoint_spec *fp;
 	u64 id = bpf_get_current_pid_tgid();
 	pid_t pid = id >> 32;
 	u64 *cnt;
 	u64 current_cnt = 0;
+	u64 target_addr = bpf_get_func_ip(ctx);
 
 	if (filter_pid && pid != filter_pid)
 		return 0;
 
-	cnt = bpf_map_lookup_or_init(&sys_exit_counts, &sys_id, &zero_value);
+	cnt = bpf_map_lookup_or_init(&sys_exit_counts, &target_addr, &zero_value);
 	if (!cnt) {
 		return 0;
 	}
 	current_cnt = __sync_fetch_and_add(cnt, 1);
 
-	fp = (struct failpoint_spec *)bpf_map_lookup_elem(&sys_failpoints, &sys_id);
+	fp = (struct failpoint_spec *)bpf_map_lookup_elem(&sys_failpoints, &target_addr);
 	if (!fp)
 		return 0;
 
 	if (should_inject(&fp->when, current_cnt) && fp->delay_exit_msecs != 0) {
-		bpf_printk("fexit %d %d\n", sys_id, fp->delay_exit_msecs);
+		bpf_printk("fexit %x %d\n", target_addr, fp->delay_exit_msecs);
 	}
 	return 0;
 }
