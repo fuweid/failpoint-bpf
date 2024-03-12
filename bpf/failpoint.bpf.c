@@ -115,6 +115,7 @@ static int handle_sys_entry_event(void *ctx)
 
 	if (should_inject(&fp->when, current_cnt) && fp->delay_enter_msecs != 0) {
 		bpf_printk("fentry %x %d\n", target_addr, fp->delay_enter_msecs);
+		bpf_failpoint_delay(fp->delay_enter_msecs);
 	}
 	return 0;
 }
@@ -144,6 +145,7 @@ static int handle_sys_exit_event(void *ctx)
 
 	if (should_inject(&fp->when, current_cnt) && fp->delay_exit_msecs != 0) {
 		bpf_printk("fexit %x %d\n", target_addr, fp->delay_exit_msecs);
+		bpf_failpoint_delay(fp->delay_exit_msecs);
 	}
 	return 0;
 }
