@@ -3,6 +3,7 @@ package internal
 import (
 	"bytes"
 	_ "embed"
+	"errors"
 	"fmt"
 	"runtime"
 	"strings"
@@ -126,6 +127,29 @@ func (fi *FailpointInjection) Start() (retErr error) {
 	return nil
 }
 
+// DumpSyscallStats dumps syscall stats.
+func (fi *FailpointInjection) DumpSyscallStats() (map[string]uint64, error) {
+	res := make(map[string]uint64)
+
+	for _, sys := range fi.syscalls {
+		addr, err := SyscallAddress(sys)
+		if err != nil {
+			return nil, err
+		}
+
+		var count uint64
+		err = fi.bpfObjs.Maps["sys_entry_counts"].Lookup(addr, &count)
+		if err != nil {
+			if !errors.Is(err, ebpf.ErrKeyNotExist) {
+				return nil, err
+			}
+		}
+		res[sys] = count
+	}
+	return res, nil
+}
+
+// Stop is to stop all the event handlers.
 func (fi *FailpointInjection) Stop() {
 	for _, bMap := range fi.bpfObjs.Maps {
 		bMap.Close()
