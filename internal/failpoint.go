@@ -2,7 +2,6 @@ package internal
 
 import (
 	"bytes"
-	"context"
 	_ "embed"
 	"fmt"
 	"runtime"
@@ -85,6 +84,12 @@ type FailpointInjection struct {
 
 // Start is to attach bpf handler to interested syscalls.
 func (fi *FailpointInjection) Start() (retErr error) {
+	defer func() {
+		if retErr != nil {
+			fi.Stop()
+		}
+	}()
+
 	for _, sys := range fi.syscalls {
 		switch runtime.GOARCH {
 		case "amd64":
@@ -105,15 +110,20 @@ func (fi *FailpointInjection) Start() (retErr error) {
 		}
 	}
 
-	err := fi.bpfObjs.Maps[".bss"].Update(uint32(0), &fi.pid, ebpf.UpdateExist)
+	// watch exit event
+	_, err := link.AttachRawTracepoint(link.RawTracepointOptions{
+		Name:    "sched_process_exit",
+		Program: fi.bpfObjs.Programs["handle_sched_process_exit"],
+	})
+	if err != nil {
+		return fmt.Errorf("failed to add sched_process_exit handler: %w", err)
+	}
+
+	err = fi.bpfObjs.Maps[".bss"].Update(uint32(0), &fi.pid, ebpf.UpdateExist)
 	if err != nil {
 		return fmt.Errorf("failed to update filter_pid in .bss section: %w", err)
 	}
 	return nil
-}
-
-func (fi *FailpointInjection) Wait(ctx context.Context) error {
-	return fmt.Errorf("not implemented yet")
 }
 
 func (fi *FailpointInjection) Stop() {
