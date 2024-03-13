@@ -166,14 +166,26 @@ func buildBpfObjs(bpfSpec *ebpf.CollectionSpec, pid uint32, specs map[string]Fai
 		switch runtime.GOARCH {
 		case "amd64":
 			sysFunc := fmt.Sprintf("__x64_sys_%s", strings.ToLower(sys))
-			for _, progName := range []string{"handle_sys_entry_event", "handle_sys_exit_event"} {
-				copied := bpfSpec.Programs[progName].Copy()
+			for _, progCfg := range []struct {
+				progName string
+				typ      ebpf.AttachType
+			}{
+				{
+					progName: "handle_sys_entry_event",
+					typ:      ebpf.AttachTraceFEntry,
+				},
+				{
+					progName: "handle_sys_exit_event",
+					typ:      ebpf.AttachTraceFExit,
+				},
+			} {
+				copied := bpfSpec.Programs[progCfg.progName].Copy()
 				copied.Type = ebpf.Tracing
 				copied.Flags = unix.BPF_F_SLEEPABLE
-				copied.AttachType = ebpf.AttachTraceFExit
+				copied.AttachType = progCfg.typ
 				copied.AttachTo = sysFunc
 
-				bpfSpec.Programs[progName+sysFunc] = copied
+				bpfSpec.Programs[progCfg.progName+sysFunc] = copied
 			}
 
 		default:

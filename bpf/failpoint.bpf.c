@@ -107,7 +107,7 @@ static int handle_sys_entry_event(void *ctx)
 	if (!cnt) {
 		return 0;
 	}
-	current_cnt = __sync_fetch_and_add(cnt, 1);
+	current_cnt = __sync_add_and_fetch(cnt, 1);
 
 	fp = (struct failpoint_spec *)bpf_map_lookup_elem(&sys_failpoints, &target_addr);
 	if (!fp)
@@ -137,7 +137,7 @@ static int handle_sys_exit_event(void *ctx)
 	if (!cnt) {
 		return 0;
 	}
-	current_cnt = __sync_fetch_and_add(cnt, 1);
+	current_cnt = __sync_add_and_fetch(cnt, 1);
 
 	fp = (struct failpoint_spec *)bpf_map_lookup_elem(&sys_failpoints, &target_addr);
 	if (!fp)
